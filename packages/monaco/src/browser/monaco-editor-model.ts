@@ -14,12 +14,15 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
+import { inject, injectable, named } from 'inversify';
 import { Position } from 'vscode-languageserver-types';
 import { TextDocumentSaveReason, TextDocumentContentChangeEvent } from 'vscode-languageserver-protocol';
 import { MonacoToProtocolConverter, ProtocolToMonacoConverter } from 'monaco-languageclient';
+import { MaybePromise } from '@theia/core/lib/common';
 import { TextEditorDocument } from '@theia/editor/lib/browser';
 import { DisposableCollection, Disposable } from '@theia/core/lib/common/disposable';
 import { Emitter, Event } from '@theia/core/lib/common/event';
+import { ContributionProvider, Prioritizeable } from '@theia/core';
 import { CancellationTokenSource, CancellationToken } from '@theia/core/lib/common/cancellation';
 import { Resource, ResourceError, ResourceVersion } from '@theia/core/lib/common/resource';
 import { Range } from 'vscode-languageserver-types';
@@ -40,6 +43,44 @@ export interface WillSaveMonacoModelEvent {
 export interface MonacoModelContentChangedEvent {
     readonly model: MonacoEditorModel;
     readonly contentChanges: TextDocumentContentChangeEvent[];
+}
+
+export const MonacoEditorModelFactoryHandler = Symbol('MonacoEditorModelFactoryHandler');
+export interface MonacoEditorModelFactoryHandler {
+
+    canHandle(resource: Resource): MaybePromise<number>;
+
+    createModel(
+        resource: Resource,
+        m2p: MonacoToProtocolConverter,
+        p2m: ProtocolToMonacoConverter,
+        options?: { encoding?: string | undefined }
+    ): MaybePromise<MonacoEditorModel>;
+
+}
+
+@injectable()
+export class MonacoEditorModelFactory {
+
+    @inject(ContributionProvider)
+    @named(MonacoEditorModelFactoryHandler)
+    protected readonly contributions: ContributionProvider<MonacoEditorModelFactoryHandler>;
+
+    @inject(MonacoToProtocolConverter)
+    protected readonly m2p: MonacoToProtocolConverter;
+
+    @inject(ProtocolToMonacoConverter)
+    protected readonly p2m: ProtocolToMonacoConverter;
+
+    async createModel(resource: Resource, options?: { encoding?: string | undefined }): Promise<MonacoEditorModel> {
+        const contributions = this.contributions.getContributions();
+        const handler = (await Prioritizeable.prioritizeAll(contributions, c => c.canHandle(resource))).map(({ value }) => value).shift();
+        if (handler) {
+            return handler.createModel(resource, this.m2p, this.p2m, options);
+        }
+        return new MonacoEditorModel(resource, this.m2p, this.p2m, options);
+    }
+
 }
 
 export class MonacoEditorModel implements ITextEditorModel, TextEditorDocument {
