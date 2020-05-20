@@ -2099,3 +2099,59 @@ export class CallHierarchyOutgoingCall {
         this.to = item;
     }
 }
+
+export class TimelineItem {
+    /**
+     * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred.
+     */
+    timestamp: number;
+
+    /**
+     * A human-readable string describing the timeline item.
+     */
+    label: string;
+
+    /**
+     * Optional id for the timeline item. It must be unique across all the timeline items provided by this source.
+     *
+     * If not provided, an id is generated using the timeline item's timestamp.
+     */
+    id?: string;
+
+    /**
+     * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
+     */
+    iconPath?: theia.Uri | { light: theia.Uri; dark: theia.Uri } | ThemeIcon;
+
+    /**
+     * A human readable string describing less prominent details of the timeline item.
+     */
+    description?: string;
+
+    /**
+     * The tooltip text when you hover over the timeline item.
+     */
+    detail?: string;
+
+    /**
+     * The [command](#Command) that should be executed when the timeline item is selected.
+     */
+    command?: theia.Command;
+
+    /**
+     * Context value of the timeline item. This can be used to contribute specific actions to the item.
+     * For example, a timeline item is given a context value as `commit`. When contributing actions to `timeline/item/context`
+     * using `menus` extension point, you can specify context value for key `timelineItem` in `when` expression like `timelineItem == commit`.
+     * This will show the `extension.copyCommitId` action only for items where `contextValue` is `commit`.
+     */
+    contextValue?: string;
+
+    /**
+     * @param label A human-readable string describing the timeline item
+     * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
+     */
+    constructor(label: string, timestamp: number) {
+        this.label = label;
+        this.timestamp = timestamp;
+    }
+}
