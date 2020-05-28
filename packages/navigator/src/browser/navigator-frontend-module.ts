@@ -66,7 +66,7 @@ export default new ContainerModule(bind => {
                 canHide: false,
                 initiallyCollapsed: false
             });
-            const timeline = await container.get(WidgetManager).getOrCreateWidget('timeline-view-1');
+            const timeline = await container.get(WidgetManager).getOrCreateWidget('timeline-view');
             viewContainer.addWidget(timeline, {
                 canHide: false,
                 initiallyCollapsed: false

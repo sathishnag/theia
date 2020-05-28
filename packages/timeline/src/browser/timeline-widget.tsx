@@ -19,22 +19,37 @@
 import { Message } from '@phosphor/messaging';
 import { inject, injectable, postConstruct } from 'inversify';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
-import { BaseWidget, MessageLoop, Panel, PanelLayout, StatefulWidget, Widget } from '@theia/core/lib/browser';
+import {
+    ApplicationShell,
+    BaseWidget,
+    MessageLoop,
+    Panel,
+    PanelLayout,
+    StatefulWidget,
+    Widget
+} from '@theia/core/lib/browser';
 import { TimelineTreeWidget } from './timeline-tree-widget';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { TimelineService } from './timeline-service';
-import { CancellationToken } from '@theia/core/lib/common';
+import { CancellationToken, CommandRegistry } from '@theia/core/lib/common';
+import { TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import { TimelineEmptyWidget } from './timeline-empty-widget';
+// import { toArray } from '@phosphor/algorithm';
 
 @injectable()
 export class TimelineWidget extends BaseWidget implements StatefulWidget {
 
     protected panel: Panel;
 
-    static ID = 'timeline-view-1';
+    static ID = 'timeline-view';
 
     @inject(TimelineTreeWidget) protected readonly resourceWidget: TimelineTreeWidget;
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(TimelineService) protected readonly timelineService: TimelineService;
+    @inject(TabBarToolbarRegistry) protected readonly tabBarToolbar: TabBarToolbarRegistry;
+    @inject(CommandRegistry) protected readonly commandRegistry: CommandRegistry;
+    @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell;
+    @inject(TimelineEmptyWidget) protected readonly timelineEmptyWidget: TimelineEmptyWidget;
 
     constructor() {
         super();
@@ -53,6 +68,7 @@ export class TimelineWidget extends BaseWidget implements StatefulWidget {
         this.panel.node.tabIndex = -1;
         layout.addWidget(this.panel);
         this.containerLayout.addWidget(this.resourceWidget);
+        this.containerLayout.addWidget(this.timelineEmptyWidget);
 
         this.refresh();
         const currentEditor = this.editorManager.activeEditor;
@@ -69,10 +85,13 @@ export class TimelineWidget extends BaseWidget implements StatefulWidget {
                 }
             }
         }
-        this.editorManager.onActiveEditorChanged(async editor => {
+        this.editorManager.onCurrentEditorChanged(async editor => {
+            console.log(editor);
             if (editor) {
                 const uri = editor.getResourceUri();
                 if (uri) {
+                    this.timelineEmptyWidget.hide();
+                    this.resourceWidget.show();
                     for (const source of this.timelineService.getSources().map(s => s.id)) {
                         const timeline = this.timelineService.getTimeline(source, uri, {}, CancellationToken.None);
                         if (timeline) {
@@ -80,8 +99,31 @@ export class TimelineWidget extends BaseWidget implements StatefulWidget {
                         }
                     }
                 }
+                return;
             }
+            // if (toArray(this.applicationShell.mainPanel.widgets()).find(widget => widget instanceof EditorWidget)) {
+            //
+            // }
+            this.resourceWidget.hide();
+            this.timelineEmptyWidget.show();
         });
+        this.commandRegistry.registerCommand({ id: 'timeline.refresh-command' }, {
+            execute: widget => this.withWidget(widget, this.update),
+            isEnabled: widget => this.withWidget(widget, () => true),
+            isVisible: widget => this.withWidget(widget, () => true)
+        });
+        this.tabBarToolbar.registerItem({
+            id: 'explorer-view-container--timeline-view-1',
+            command: 'timeline.refresh-command',
+            icon: 'fa fa-refresh'
+        });
+    }
+
+    protected withWidget<T>(widget: Widget, cb: (navigator: TimelineWidget) => T): T | false {
+        if (widget instanceof TimelineWidget && widget.id === TimelineWidget.ID) {
+            return cb(widget);
+        }
+        return false;
     }
 
     get containerLayout(): PanelLayout {
@@ -89,6 +131,7 @@ export class TimelineWidget extends BaseWidget implements StatefulWidget {
     }
 
     protected readonly toDisposeOnRefresh = new DisposableCollection();
+
     protected refresh(): void {
         this.toDisposeOnRefresh.dispose();
         this.toDispose.push(this.toDisposeOnRefresh);
@@ -103,12 +146,13 @@ export class TimelineWidget extends BaseWidget implements StatefulWidget {
 
     protected onUpdateRequest(msg: Message): void {
         MessageLoop.sendMessage(this.resourceWidget, msg);
+        MessageLoop.sendMessage(this.timelineEmptyWidget, msg);
         super.onUpdateRequest(msg);
     }
 
     protected onAfterAttach(msg: Message): void {
         this.node.appendChild(this.resourceWidget.node);
-
+        this.node.appendChild(this.timelineEmptyWidget.node);
         super.onAfterAttach(msg);
         this.update();
     }

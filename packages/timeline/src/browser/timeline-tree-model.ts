@@ -18,14 +18,22 @@ import { injectable } from 'inversify';
 import {
     CompositeTreeNode,
     SelectableTreeNode,
-    TreeModelImpl,
+    TreeModelImpl, TreeNode,
 } from '@theia/core/lib/browser/tree';
 import { Timeline } from './timeline-service';
-
-export interface TimelineRootNode extends CompositeTreeNode {
-}
+import { Command } from '@theia/core/lib/common';
 
 export interface TimelineNode extends SelectableTreeNode {
+    command: Command | undefined
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    commandArgs: any[];
+    description: string | undefined
+}
+
+export namespace TimelineNode {
+    export function is(node: TreeNode): node is TimelineNode {
+        return 'name' in node;
+    }
 }
 
 @injectable()
@@ -38,15 +46,22 @@ export class TimelineTreeModel extends TreeModelImpl {
                 id: 'timeline-tree-root',
                 parent: undefined,
                 visible: false,
-                rootUri: '',
                 children: []
-            } as TimelineRootNode;
-            root.children = items.map(item => ({
-                id: item.id ? item.id : item.timestamp.toString(),
-                parent: root,
-                name: item.label,
-                visible: true
-            }));
+            } as CompositeTreeNode;
+            root.children = items.map(item => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const command: any = item.command;
+                return {
+                    id: item.id ? item.id : item.timestamp.toString(),
+                    parent: root,
+                    name: item.label,
+                    command: command,
+                    commandArgs: command.arguments,
+                    description: item.description,
+                    selected: false,
+                    visible: true
+                } as TimelineNode;
+            });
             this.root = root;
         }
     }

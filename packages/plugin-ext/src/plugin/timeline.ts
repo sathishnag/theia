@@ -13,20 +13,24 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-import { TimelineExt, TimelineMain } from '../common';
+import { Plugin, TimelineExt, TimelineMain } from '../common';
 import { RPCProtocol } from '../common/rpc-protocol';
-import { Disposable } from './types-impl';
+import { Disposable, ThemeIcon } from './types-impl';
 import { TimelineProvider } from '@theia/plugin';
 import { PLUGIN_RPC_CONTEXT } from '../common';
-import { Timeline, TimelineOptions } from '@theia/timeline/lib/browser/timeline-service';
+import { Timeline, TimelineItem, TimelineOptions } from '@theia/timeline/lib/browser/timeline-service';
 import { CancellationToken } from '@theia/core/lib/common';
+import { DisposableCollection } from '@theia/core/lib/common/disposable';
 import { URI } from 'vscode-uri';
+import { PluginIconPath } from './plugin-icon-path';
+import { CommandRegistryImpl } from './command-registry';
 
 export class TimelineExtImpl implements TimelineExt {
     private readonly proxy: TimelineMain;
     private providers = new Map<string, TimelineProvider>();
+    private plugin: Plugin;
 
-    constructor(readonly rpc: RPCProtocol) {
+    constructor(readonly rpc: RPCProtocol, private readonly commands: CommandRegistryImpl) {
         this.proxy = rpc.getProxy(PLUGIN_RPC_CONTEXT.TIMELINE_MAIN);
     }
 
@@ -35,13 +39,34 @@ export class TimelineExtImpl implements TimelineExt {
         const timeline = await provider?.provideTimeline(URI.parse(uri), options, token);
         if (timeline) {
             return {
-                items: timeline.items.map(item => ({ label: item.label, timestamp: item.timestamp })),
+                items: timeline.items.map(item => {
+                    let icon;
+                    let iconUrl;
+                    let themeIconId;
+                    const { iconPath } = item;
+                    if (typeof iconPath === 'string' && iconPath.indexOf('fa-') !== -1) {
+                        icon = iconPath;
+                    } else if (iconPath instanceof ThemeIcon) {
+                        themeIconId = iconPath.id;
+                    } else {
+                        iconUrl = PluginIconPath.toUrl(<PluginIconPath | undefined>iconPath, this.plugin);
+                    }
+                    const toDispose = new DisposableCollection();
+                    return {
+                        label: item.label,
+                        timestamp: item.timestamp,
+                        icon,
+                        iconUrl,
+                        themeIconId,
+                        command: this.commands.converter.toSafeCommand(item.command, toDispose)
+                    } as TimelineItem;
+                }),
                 source: ''
             };
         }
     }
 
-    registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable {
+    registerTimelineProvider(plugin: Plugin, scheme: string | string[], provider: TimelineProvider): Disposable {
         const existing = this.providers.get(provider.id);
         if (existing) {
             throw new Error(`Timeline Provider ${provider.id} already exists.`);

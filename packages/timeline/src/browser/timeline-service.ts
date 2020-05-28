@@ -36,10 +36,11 @@ export class TimelineItem {
      */
     id?: string;
 
-    /**
-     * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
-     */
-    iconPath?: URI | { light: URI; dark: URI };
+    /* font-awesome icon for compatibility */
+    icon?: string;
+    iconUrl?: IconUrl;
+
+    themeIconId?: 'folder' | 'file';
 
     /**
      * A human readable string describing less prominent details of the timeline item.
@@ -73,6 +74,8 @@ export class TimelineItem {
         this.timestamp = timestamp;
     }
 }
+
+type IconUrl = string | { light: string; dark: string; };
 
 export interface TimelineChangeEvent {
     id: string;
@@ -163,9 +166,6 @@ export class TimelineService {
                 return undefined;
             }
         }
-        // else if (!provider.scheme.includes(uri.scheme)) {
-        //     return undefined;
-        // }
 
         return {
             result: provider.provideTimeline(uri, options, tokenSource)
@@ -173,10 +173,7 @@ export class TimelineService {
                     if (result === undefined) {
                         return undefined;
                     }
-
                     result.items = result.items.map(item => ({ ...item, source: provider.id }));
-                    // result.items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
-
                     return result;
                 }),
             options: options,

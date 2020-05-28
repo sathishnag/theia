@@ -68,7 +68,6 @@ export class TimelineMainImpl implements TimelineMain {
             if (emitter) {
                 emitter.fire(e);
             }
-            console.log('>>>>>>>>>>>>>>>>>>>');
         }
     }
 }

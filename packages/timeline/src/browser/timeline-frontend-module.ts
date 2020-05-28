@@ -21,6 +21,7 @@ import { TimelineWidget } from './timeline-widget';
 import { TimelineTreeWidget } from './timeline-tree-widget';
 import { createTreeContainer, TreeModel, TreeModelImpl, TreeWidget } from '@theia/core/lib/browser';
 import { TimelineTreeModel } from './timeline-tree-model';
+import { TimelineEmptyWidget } from './timeline-empty-widget';
 
 import '../../src/browser/style/index.css';
 
@@ -39,6 +40,11 @@ export default new ContainerModule(bind => {
     bind(WidgetFactory).toDynamicValue(({ container }) => ({
         id: TimelineTreeWidget.ID,
         createWidget: () => container.get(TimelineTreeWidget)
+    })).inSingletonScope();
+    bind(TimelineEmptyWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(({ container }) => ({
+        id: TimelineEmptyWidget.ID,
+        createWidget: () => container.get(TimelineEmptyWidget)
     })).inSingletonScope();
 });
 
