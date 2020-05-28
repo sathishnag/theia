@@ -87,13 +87,27 @@ export class DebugStackFrame extends DebugStackFrameData implements TreeElement 
         let response;
         try {
             response = await this.session.sendRequest('scopes', this.toArgs());
-        } catch (e) {
+        } catch {
             // no-op: ignore debug adapter errors
         }
         if (!response) {
             return [];
         }
         return response.body.scopes.map(raw => new DebugScope(raw, () => this.session));
+    }
+
+    // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/workbench/contrib/debug/common/debugModel.ts#L324-L335
+    async getMostSpecificScopes(range: monaco.IRange): Promise<DebugScope[]> {
+        const scopes = await this.getScopes();
+        const nonExpensiveScopes = scopes.filter(s => !s.expensive);
+        const haveRangeInfo = nonExpensiveScopes.some(s => !!s.range);
+        if (!haveRangeInfo) {
+            return nonExpensiveScopes;
+        }
+
+        const scopesContainingRange = nonExpensiveScopes.filter(scope => scope.range && monaco.Range.containsRange(scope.range, range))
+            .sort((first, second) => (first.range!.endLineNumber - first.range!.startLineNumber) - (second.range!.endLineNumber - second.range!.startLineNumber));
+        return scopesContainingRange.length ? scopesContainingRange : nonExpensiveScopes;
     }
 
     protected toArgs<T extends object>(arg?: T): { frameId: number } & T {
@@ -128,6 +142,14 @@ export class DebugStackFrame extends DebugStackFrameData implements TreeElement 
             <span className='name'>{source.name}</span>
             <span className='line'>{this.raw.line}:{this.raw.column}</span>
         </span>;
+    }
+
+    get range(): monaco.IRange | undefined {
+        const { source, line: startLine, column: startColumn, endLine, endColumn } = this.raw;
+        if (source) {
+            return new monaco.Range(startLine, startColumn, endLine || startLine, endColumn || startColumn);
+        }
+        return undefined;
     }
 
 }
