@@ -229,14 +229,17 @@ export class WorkspaceService implements FrontendApplicationContribution {
                 return {
                     folders: [{ path: this._workspace.uri }]
                 };
+            } else if (this.isWorkspaceFile(new URI(this._workspace.uri))) {
+                const { stat, content } = await this.fileSystem.resolveContent(this._workspace.uri);
+                const strippedContent = jsoncparser.stripComments(content);
+                const data = jsoncparser.parse(strippedContent);
+                if (data && WorkspaceData.is(data)) {
+                    return WorkspaceData.transformToAbsolute(data, stat);
+                }
+                this.logger.error(`Unable to retrieve workspace data from the file: '${this._workspace.uri}'. Please check if the file is corrupted.`);
+            } else {
+                this.logger.warn(`File is not a workspace file: ${this._workspace.uri}`);
             }
-            const { stat, content } = await this.fileSystem.resolveContent(this._workspace.uri);
-            const strippedContent = jsoncparser.stripComments(content);
-            const data = jsoncparser.parse(strippedContent);
-            if (data && WorkspaceData.is(data)) {
-                return WorkspaceData.transformToAbsolute(data, stat);
-            }
-            this.logger.error(`Unable to retrieve workspace data from the file: '${this._workspace.uri}'. Please check if the file is corrupted.`);
         }
     }
 
@@ -585,6 +588,15 @@ export class WorkspaceService implements FrontendApplicationContribution {
         }
         const rootUris = new Set(this.tryGetRoots().map(root => root.uri));
         return uris.every(uri => rootUris.has(uri.toString()));
+    }
+
+    /**
+     * Check if the file should be considered as a workspace file.
+     *
+     * Example: We should not try to read the contents of an .exe file.
+     */
+    protected async isWorkspaceFile(uri: URI): Promise<boolean> {
+        return uri.path.ext === `.${THEIA_EXT}` || uri.path.ext === `.${VSCODE_EXT}`;
     }
 
 }
